@@ -1,0 +1,52 @@
+func print_list(l) {
+  print("[");
+
+  let i := 0;
+  while i < #l {
+    cond {
+      i > 0 -> {
+        print(", ");
+      }
+    }
+
+    let item := l[i];
+    print(str(item));
+
+    i := i + 1;
+  }
+
+  print("]\n");
+}
+
+func sort(arr) {
+  let n, swapped := #arr, false;
+
+  let i := 0;
+  while i < (n - 1) {
+    let j := 0;
+
+    while j < (n - i - 1) {
+      cond {
+        arr[j] > arr[j + 1] -> {
+          swapped := true;
+          arr[j], arr[j + 1] := arr[j + 1], arr[j];
+        }
+      }
+
+      j := j + 1;
+    }
+
+    cond {
+      not swapped -> {
+        return nil;
+      }
+    }
+
+    i := i + 1;
+  }
+}
+
+let l := [1, 4, 3, 6, 5, 5, 8, 2, 9];
+print_list(l);
+sort(l);
+print_list(l);

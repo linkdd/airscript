@@ -1,0 +1,21 @@
+let n := 100;
+let i := 0;
+
+while i < n {
+  cond {
+    i % 15 = 0 -> {
+      print("Fizz, Buzz\n");
+    }
+    i % 5 = 0 -> {
+      print("Buzz\n");
+    }
+    i % 3 = 0 -> {
+      print("Fizz\n");
+    }
+    else -> {
+      print(str(i) <> "\n");
+    }
+  }
+
+  i := i + 1;
+}

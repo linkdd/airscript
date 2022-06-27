@@ -1,0 +1,20 @@
+func make_action(kind) {
+  func action(fn) {
+    print(kind <> " " <> fn() <> "\n");
+  }
+
+  return action;
+}
+
+func greeter(name) {
+  func greet() {
+    return "hello " <> name;
+  }
+
+  return greet;
+}
+
+let say := make_action("say:");
+let greet := greeter("world");
+
+say(greet);

@@ -1,0 +1,346 @@
+use crate::prelude::AirError;
+use crate::parser::{Parser, Token, ast, ast::Node};
+
+grammar<UD>(this: &mut Parser<UD>) where UD: Clone + 'static;
+
+//#region Statements
+pub(crate) Chunk: Node<ast::Statement> = {
+  <l:@L> <statements:Statement*> <r:@R> => {
+    Node::new((l, r), ast::Statement::chunk(statements))
+  },
+}
+
+Statement: Node<ast::Statement> = {
+  <a:Assignment> => a,
+  <f:Function> => f,
+  <c:ControlFlow> => c,
+  <r:Return> => r,
+  <e:Evaluation> => e,
+  <d:Delete> => d,
+}
+//#endregion
+
+//#region Assignment
+Assignment: Node<ast::Statement> = {
+  <l:@L> "let" <locs:Comma<NewLocation>> ":=" <vals:Comma<Expression>> ";" <r:@R> => {
+    Node::new((l, r), ast::Statement::assign(locs, vals))
+  },
+  <l:@L> <locs:Comma<WriteLocation>> ":=" <vals:Comma<Expression>> ";" <r:@R> => {
+    Node::new((l, r), ast::Statement::assign(locs, vals))
+  },
+}
+
+NewLocation: Node<ast::AssignLocation> = {
+  <l:@L> <var_name:"identifier"> <r:@R> => {
+    Node::new((l, r), ast::AssignLocation::new_var(var_name))
+  }
+}
+
+WriteLocation: Node<ast::AssignLocation> = {
+  <l:@L> <target:Expression> <r:@R> => {
+    Node::new((l, r), ast::AssignLocation::set_var(target))
+  }
+}
+//#endregion
+
+//#region Function
+Function: Node<ast::Statement> = {
+  <l:@L> "func" <func_name:"identifier"> "(" <params:TrailingComma<"identifier">> ")" "{" <body:Statement+> "}" <r:@R> => {
+    Node::new((l, r), ast::Statement::function(func_name, params, body))
+  },
+  <l:@L> "do" "{" <statements:Statement*> "}" <r:@R> => {
+    Node::new((l, r), ast::Statement::chunk(statements))
+  },
+}
+//#endregion
+
+//#region Control Flow
+ControlFlow: Node<ast::Statement> = {
+  <l:@L> "while" <cond:Expression> "{" <iteration:Statement*> "}" <r:@R> => {
+    Node::new((l, r), ast::Statement::control_flow_while(cond, iteration))
+  },
+  <l:@L> "cond" "{" <cases:ConditionalCase+> <else_case:ConditionalElse?> "}" <r:@R> => {
+    Node::new((l, r), ast::Statement::control_flow_cond(cases, else_case))
+  },
+}
+
+ConditionalCase: (Node<ast::Expression>, Vec<Node<ast::Statement>>) = {
+  <cond:Expression> "->" "{" <block:Statement*> "}" => {
+    (cond, block)
+  },
+}
+
+ConditionalElse: Vec<Node<ast::Statement>> = {
+  "else" "->" "{" <block:Statement*> "}" => {
+    block
+  },
+}
+//#endregion
+
+//#region Return
+Return: Node<ast::Statement> = {
+  <l:@L> "return" <e:Comma<Expression>> ";" <r:@R> => {
+    Node::new((l, r), ast::Statement::return_vals(e))
+  }
+}
+//#endregion
+
+//#region Eval
+Evaluation: Node<ast::Statement> = {
+  <l:@L> <e:Expression> ";" <r:@R> => {
+    Node::new((l, r), ast::Statement::eval(e))
+  }
+}
+//#endregion
+
+//#region Delete
+Delete: Node<ast::Statement> = {
+  <l:@L> "delete" <table_index:Expression> ";" <r:@R> => {
+    Node::new((l, r), ast::Statement::delete(table_index))
+  }
+}
+//#endregion
+
+//#region Expression
+Expressions = TrailingComma<Expression>;
+Expression: Node<ast::Expression> = {
+  #[precedence(level="1")]
+  <t: Term> => t,
+
+  #[precedence(level="2")] #[assoc(side="left")]
+  <l:@L> <lhs:Expression> "." <rhs:"identifier"> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::access(lhs, rhs)))
+  },
+
+  <l:@L> <table:Expression> "[" <index:TableIndex> "]" <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::index(table, index)))
+  },
+
+  <l:@L> <func:Expression> "(" <params:Expressions> ")" <r:@R> => {
+    Node::new((l, r), ast::Expression::func_call(func, params))
+  },
+
+  #[precedence(level="3")] #[assoc(side="right")]
+  <l:@L> "-" <t:Term> <r:@R> => {
+    Node::new((l, r), ast::Expression::unop(ast::UnaryOperation::neg(t)))
+  },
+
+  <l:@L> "not" <t:Term> <r:@R> => {
+    Node::new((l, r), ast::Expression::unop(ast::UnaryOperation::not(t)))
+  },
+
+  <l:@L> "#" <t:Term> <r:@R> => {
+    Node::new((l, r), ast::Expression::unop(ast::UnaryOperation::len(t)))
+  },
+
+  #[precedence(level="4")] #[assoc(side="left")]
+  <l:@L> <lhs:Expression> "*" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::mul(lhs, rhs)))
+  },
+
+  <l:@L> <lhs:Expression> "/" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::div(lhs, rhs)))
+  },
+
+  <l:@L> <lhs:Expression> "%" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::modulo(lhs, rhs)))
+  },
+
+  #[precedence(level="5")] #[assoc(side="left")]
+  <l:@L> <lhs:Expression> "+" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::add(lhs, rhs)))
+  },
+
+  <l:@L> <lhs:Expression> "-" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::sub(lhs, rhs)))
+  },
+
+  <l:@L> <lhs:Expression> "<>" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::concat(lhs, rhs)))
+  },
+
+  #[precedence(level="6")] #[assoc(side="left")]
+  <l:@L> <lhs:Expression> "<" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::lt(lhs, rhs)))
+  },
+
+  <l:@L> <lhs:Expression> "<=" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::lte(lhs, rhs)))
+  },
+
+  <l:@L> <lhs:Expression> ">" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::gt(lhs, rhs)))
+  },
+
+  <l:@L> <lhs:Expression> ">=" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::gte(lhs, rhs)))
+  },
+
+  #[precedence(level="7")] #[assoc(side="left")]
+  <l:@L> <lhs:Expression> "=" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::eq(lhs, rhs)))
+  },
+
+  <l:@L> <lhs:Expression> "!=" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::ne(lhs, rhs)))
+  },
+
+  #[precedence(level="8")] #[assoc(side="left")]
+  <l:@L> <lhs:Expression> "and" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::and(lhs, rhs)))
+  },
+
+  #[precedence(level="9")] #[assoc(side="left")]
+  <l:@L> <lhs:Expression> "or" <rhs:Expression> <r:@R> => {
+    Node::new((l, r), ast::Expression::binop(ast::BinaryOperation::or(lhs, rhs)))
+  },
+}
+
+Term: Node<ast::Expression> = {
+  <l:Literal> => l,
+  <v:Variable> => v,
+  <d:Dict> => d,
+  <a:Array> => a,
+  "(" <e:Expression> ")" => e,
+}
+//#endregion
+
+//#region Literal
+Literal: Node<ast::Expression> = {
+  <l:@L> "nil" <r:@R> => {
+    Node::new((l, r), ast::Expression::literal(ast::Literal::nil()))
+  },
+  <l:@L> "true" <r:@R> => {
+    Node::new((l, r), ast::Expression::literal(ast::Literal::boolean(true)))
+  },
+  <l:@L> "false" <r:@R> => {
+    Node::new((l, r), ast::Expression::literal(ast::Literal::boolean(false)))
+  },
+  <l:@L> <i:"int2"> <r:@R> => {
+    Node::new((l, r), ast::Expression::literal(ast::Literal::int(i)))
+  },
+  <l:@L> <i:"int8"> <r:@R> => {
+    Node::new((l, r), ast::Expression::literal(ast::Literal::int(i)))
+  },
+  <l:@L> <i:"int10"> <r:@R> => {
+    Node::new((l, r), ast::Expression::literal(ast::Literal::int(i)))
+  },
+  <l:@L> <i:"int16"> <r:@R> => {
+    Node::new((l, r), ast::Expression::literal(ast::Literal::int(i)))
+  },
+  <l:@L> <f:"float"> <r:@R> => {
+    Node::new((l, r), ast::Expression::literal(ast::Literal::float(f)))
+  },
+  <l:@L> <s:"string"> <r:@R> => {
+    Node::new((l, r), ast::Expression::literal(ast::Literal::string(s)))
+  },
+}
+//#endregion
+
+//#region Variable
+Variable: Node<ast::Expression> = {
+  <l:@L> <var_name:"identifier"> <r:@R> => {
+    Node::new((l, r), ast::Expression::var(var_name))
+  }
+}
+//#endregion
+
+//#region Tables
+TableIndex: Node<ast::Expression> = {
+  <e:Expression> => e,
+}
+
+//#region Dictionary
+Dict: Node<ast::Expression> = {
+  <l:@L> "{" <entries:TrailingComma<DictEntry>> "}" <r:@R> => {
+    Node::new((l, r), ast::Expression::dict(entries))
+  }
+}
+DictEntry: (String, Node<ast::Expression>) = {
+  <key:"identifier"> ":" <val:Expression> => (key, val),
+  <key:"string"> ":" <val:Expression> => (key, val),
+}
+//#endregion
+
+//#region Array
+Array: Node<ast::Expression> = {
+  <l:@L> "[" <items:TrailingComma<Expression>> "]" <r:@R> => {
+    Node::new((l, r), ast::Expression::array(items))
+  },
+}
+//#endregion
+//#endregion
+
+//#region Utilities
+TrailingComma<T>: Vec<T> = {
+  <mut v:(<T> ",")*> <e:T?> => match e {
+    None => v,
+    Some(e) => {
+      v.push(e);
+      v
+    }
+  }
+}
+
+Comma<T>: Vec<T> = {
+  <mut v:(<T> ",")*> <e:T> => {
+    v.push(e);
+    v
+  }
+}
+//#endregion
+
+extern {
+  type Location = usize;
+  type Error = AirError;
+
+  enum Token {
+    "let" => Token::KeywordLet,
+    "func" => Token::KeywordFunc,
+    "cond" => Token::KeywordCond,
+    "else" => Token::KeywordElse,
+    "while" => Token::KeywordWhile,
+    "return" => Token::KeywordReturn,
+    "delete" => Token::KeywordDelete,
+    "do" => Token::KeywordDo,
+    "nil" => Token::KeywordNil,
+    "{" => Token::CurlyBracketBegin,
+    "}" => Token::CurlyBracketEnd,
+    "[" => Token::BracketBegin,
+    "]" => Token::BracketEnd,
+    "(" => Token::ParenthesisBegin,
+    ")" => Token::ParenthesisEnd,
+    "," => Token::Comma,
+    ";" => Token::SemiColon,
+    ":" => Token::Colon,
+    "->" => Token::Arrow,
+    "@" => Token::At,
+    ":=" => Token::OperatorAssign,
+    "." => Token::OperatorAccess,
+    "#" => Token::OperaotrLen,
+    "-" => Token::OperatorMinus,
+    "+" => Token::OperatorPlus,
+    "*" => Token::OperatorMul,
+    "/" => Token::OperatorDiv,
+    "%" => Token::OperatorMod,
+    "<>" => Token::OperatorConcat,
+    "<" => Token::OperatorLT,
+    "<=" => Token::OperatorLTE,
+    ">" => Token::OperatorGT,
+    ">=" => Token::OperatorGTE,
+    "=" => Token::OperatorEQ,
+    "!=" => Token::OperatorNE,
+    "not" => Token::OperatorNot,
+    "and" => Token::OperatorAnd,
+    "or" => Token::OperatorOr,
+    "identifier" => Token::Identifier(<String>),
+    "true" => Token::True,
+    "false" => Token::False,
+    "int2" => Token::IntegerBase2(<i64>),
+    "int8" => Token::IntegerBase8(<i64>),
+    "int10" => Token::IntegerBase10(<i64>),
+    "int16" => Token::IntegerBase16(<i64>),
+    "float" => Token::Float(<f64>),
+    "string" => Token::String(<String>),
+  }
+}

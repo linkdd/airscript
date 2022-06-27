@@ -1,0 +1,18 @@
+func fib(n) {
+  cond {
+    n = 0 -> {
+      return 0;
+    }
+    n = 1 -> {
+      return 1;
+    }
+    else -> {
+      return fib(n - 1) + fib(n - 2);
+    }
+  }
+}
+
+print(str(fib(5)) <> "\n");
+print(str(fib(6)) <> "\n");
+print(str(fib(7)) <> "\n");
+print(str(fib(26)) <> "\n");

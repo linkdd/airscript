@@ -1,0 +1,24 @@
+func fib_impl(n, memo) {
+  cond {
+    n = 0 -> {
+      memo["0"] := 0;
+    }
+    n = 1 -> {
+      memo["1"] := 1;
+    }
+    memo[str(n)] = nil -> {
+      memo[str(n)] := fib_impl(n - 1, memo) + fib_impl(n - 2, memo);
+    }
+  }
+
+  return memo[str(n)];
+}
+
+func fib(n) {
+  return fib_impl(n, {});
+}
+
+print(str(fib(5)) <> "\n");
+print(str(fib(6)) <> "\n");
+print(str(fib(7)) <> "\n");
+print(str(fib(26)) <> "\n");

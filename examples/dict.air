@@ -1,0 +1,7 @@
+let d := {
+  foo: "bar",
+  "the answer": 42,
+};
+
+print(d.foo <> "\n");
+print(str(d["the answer"]) <> "\n");

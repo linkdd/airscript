@@ -1,0 +1,17 @@
+[package]
+name = "airscript"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+lalrpop = "0.19"
+
+[dependencies]
+lalrpop-util = "0.19"
+regex = "1"
+logos = "0.12"
+parse_int = "0.6"
+snailquote = "0.3"
+string-interner = "0.14"
+
+clap = { version = "3.2", features = ["cargo"] }

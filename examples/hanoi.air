@@ -1,0 +1,49 @@
+func print_tower(t) {
+  print("[");
+
+  let i := 0;
+  while i < #t {
+    cond {
+      i > 0 -> {
+        print(", ");
+      }
+    }
+
+    let disk := t[i];
+    print(str(disk));
+
+    i := i + 1;
+  }
+
+  print("]\n");
+}
+
+func hanoi(n, a, b, c) {
+  cond {
+    n = 1 -> {
+      let disk := a[#a - 1];
+      delete a[#a - 1];
+      c[#c] := disk;
+    }
+    else -> {
+      hanoi(n - 1, a, c, b);
+      hanoi(1, a, b, c);
+      hanoi(n - 1, b, a, c);
+    }
+  }
+}
+
+let a := [5, 4, 3, 2, 1];
+let b := [];
+let c := [];
+
+print_tower(a);
+print_tower(b);
+print_tower(c);
+
+hanoi(#a, a, b, c);
+
+print("---\n");
+print_tower(a);
+print_tower(b);
+print_tower(c);
